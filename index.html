@@ -1,0 +1,302 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Color Words Game</title>
+  <style>
+    :root{
+      --accent:#222;
+      --muted:#666;
+      --bg:#f7f7f9;
+    }
+    html,body{height:100%;margin:0;font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,"Helvetica Neue",Arial;}
+    body{
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      background:var(--bg);
+      transition:background-color 400ms ease;
+      color:var(--accent);
+      padding:24px;
+      box-sizing:border-box;
+    }
+    .card{
+      width:min(880px,100%);
+      max-width:880px;
+      background:#fff;
+      border-radius:12px;
+      box-shadow:0 10px 30px rgba(0,0,0,0.08);
+      padding:28px;
+    }
+    header{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:12px;}
+    h1{font-size:20px;margin:0;}
+    .meta{color:var(--muted);font-size:14px;}
+    .top-row{display:flex;gap:12px;align-items:center;}
+    .stat{background:#f2f4f7;padding:8px 12px;border-radius:8px;font-weight:600;}
+    main{display:grid;grid-template-columns:1fr 320px;gap:20px;align-items:start;}
+    .play-area{
+      display:flex;flex-direction:column;gap:18px;
+    }
+    #word-display{
+      font-size:64px;
+      font-weight:800;
+      letter-spacing:2px;
+      text-align:center;
+      padding:28px 16px;
+      border-radius:12px;
+      background:linear-gradient(180deg, rgba(0,0,0,0.02), rgba(0,0,0,0.01));
+      user-select:none;
+      transition:transform 150ms ease, box-shadow 150ms ease;
+    }
+    #word-display.wiggle{animation:shake 500ms}
+    @keyframes shake{
+      10%{transform:translateX(-6px)}
+      30%{transform:translateX(6px)}
+      50%{transform:translateX(-4px)}
+      70%{transform:translateX(4px)}
+      90%{transform:translateX(-2px)}
+    }
+    form{display:flex;gap:8px;align-items:center;}
+    input[type="text"]{
+      flex:1;padding:12px 14px;border-radius:10px;border:1px solid #e3e6ea;font-size:16px;
+      outline:none;box-sizing:border-box;
+    }
+    button{
+      padding:10px 14px;border-radius:10px;border:none;background:#0b76ff;color:white;font-weight:700;
+      cursor:pointer;font-size:15px;
+    }
+    button.secondary{background:#f2f4f7;color:var(--accent);font-weight:700;}
+    .sidebar{background:#fbfcfe;padding:14px;border-radius:10px;border:1px solid #f0f2f5;}
+    .hint{font-size:14px;color:var(--muted);margin-bottom:10px;}
+    .colors-list{display:flex;flex-wrap:wrap;gap:8px}
+    .badge{padding:6px 10px;border-radius:999px;background:#fff;border:1px solid #eef1f6;font-weight:600;font-size:13px}
+    .status{margin-top:8px;font-weight:700;font-size:15px;color:var(--muted)}
+    .footer{margin-top:14px;font-size:13px;color:var(--muted)}
+    .result{
+      margin-top:10px;padding:8px 10px;border-radius:8px;font-weight:700;display:inline-block;
+    }
+    .result.correct{background:#e6fbef;color:#0a7a2f}
+    .result.wrong{background:#fff0f0;color:#b11a1a}
+    .controls{display:flex;gap:8px;align-items:center;margin-top:6px}
+    @media (max-width:880px){
+      main{grid-template-columns:1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="card" role="application" aria-labelledby="title">
+    <header>
+      <div>
+        <h1 id="title">Color Words — Quick Challenge</h1>
+        <div class="meta">Type the name of the color of the word (not the word text). Get points and change the background color on correct answers.</div>
+      </div>
+      <div class="top-row">
+        <div class="stat" aria-live="polite">Score: <span id="score">0</span></div>
+        <div class="stat">Time: <span id="time">30</span>s</div>
+      </div>
+    </header>
+
+    <main>
+      <section class="play-area" aria-live="polite">
+        <div id="word-display" aria-hidden="false">READY</div>
+
+        <form id="answer-form" onsubmit="return false;" aria-label="Answer form">
+          <input id="answer" autocomplete="off" inputmode="text" placeholder="Type the color of the text (e.g. blue)" aria-label="Type color name" />
+          <button id="submit">Submit</button>
+          <button id="skip" class="secondary" type="button">Skip</button>
+        </form>
+
+        <div class="controls">
+          <button id="start" type="button">Start Game</button>
+          <button id="restart" class="secondary" type="button">Restart</button>
+          <div id="feedback" class="status" aria-live="polite"></div>
+        </div>
+
+        <div class="footer">Tip: Common names work (e.g. "grey" or "gray" accept both). Press Enter to submit.</div>
+      </section>
+
+      <aside class="sidebar" aria-hidden="false">
+        <div class="hint">Colors used in this game</div>
+        <div class="colors-list" id="colors-list" role="list"></div>
+
+        <div style="margin-top:12px;">
+          <div class="hint">How to play</div>
+          <ol style="margin:8px 0 0 18px;padding:0;color:var(--muted);font-size:14px">
+            <li>Press Start (30s timer)</li>
+            <li>Type the color of the displayed word's text and press Enter</li>
+            <li>Correct → background changes to that color and you score a point</li>
+          </ol>
+        </div>
+
+        <div id="final" style="margin-top:14px;"></div>
+      </aside>
+    </main>
+  </div>
+
+  <script>
+    // Simple "Color Words" game
+    (function(){
+      const colors = [
+        "red","blue","green","yellow","purple","orange","pink","brown",
+        "black","gray","cyan","magenta","lime","teal","indigo"
+      ];
+
+      // Accept some common synonyms
+      const alias = {
+        "grey":"gray",
+        "fuchsia":"magenta",
+        "aqua":"cyan"
+      };
+
+      const wordDisplay = document.getElementById('word-display');
+      const answerInput = document.getElementById('answer');
+      const submitBtn = document.getElementById('submit');
+      const skipBtn = document.getElementById('skip');
+      const startBtn = document.getElementById('start');
+      const restartBtn = document.getElementById('restart');
+      const scoreEl = document.getElementById('score');
+      const timeEl = document.getElementById('time');
+      const feedback = document.getElementById('feedback');
+      const colorsList = document.getElementById('colors-list');
+      const finalBox = document.getElementById('final');
+
+      // populate color badges
+      colors.forEach(c=>{
+        const b = document.createElement('div');
+        b.className='badge';
+        b.textContent = c;
+        b.style.borderColor = '#f0f2f5';
+        colorsList.appendChild(b);
+      });
+
+      let currentTextColor = null; // the correct answer for current round
+      let score = 0;
+      let timeLeft = 30;
+      let timerId = null;
+      let running = false;
+
+      function normalize(s){
+        if(!s) return '';
+        s = s.trim().toLowerCase();
+        if(alias[s]) return alias[s];
+        return s;
+      }
+
+      function pickRandom(arr){
+        return arr[Math.floor(Math.random()*arr.length)];
+      }
+
+      function newRound(){
+        // pick a word label and a text color (can be same or different)
+        const wordLabel = pickRandom(colors);
+        const textColor = pickRandom(colors);
+        wordDisplay.textContent = wordLabel.toUpperCase();
+        wordDisplay.style.color = textColor;
+        currentTextColor = textColor;
+        feedback.textContent = '';
+        wordDisplay.classList.remove('wiggle');
+        answerInput.value = '';
+        answerInput.focus();
+      }
+
+      function startGame(){
+        if(running) return;
+        running = true;
+        score = 0;
+        timeLeft = 30;
+        scoreEl.textContent = score;
+        timeEl.textContent = timeLeft;
+        finalBox.textContent = '';
+        document.body.style.transition = 'background-color 400ms ease';
+        newRound();
+        timerId = setInterval(()=>{
+          timeLeft--;
+          timeEl.textContent = timeLeft;
+          if(timeLeft <= 0){
+            endGame();
+          }
+        }, 1000);
+      }
+
+      function endGame(){
+        running = false;
+        clearInterval(timerId);
+        feedback.innerHTML = '';
+        finalBox.innerHTML = '<div class="result">Game over — your score: <strong>' + score + '</strong></div>';
+        wordDisplay.textContent = 'TIME!';
+        wordDisplay.style.color = '#333';
+        answerInput.blur();
+      }
+
+      function giveFeedback(msg, ok){
+        if(ok){
+          feedback.innerHTML = '<span class="result correct">' + msg + '</span>';
+        } else {
+          feedback.innerHTML = '<span class="result wrong">' + msg + '</span>';
+          // small visual cue
+          wordDisplay.classList.remove('wiggle');
+          void wordDisplay.offsetWidth; // reflow to restart animation
+          wordDisplay.classList.add('wiggle');
+        }
+      }
+
+      function submitAnswer(){
+        if(!running) return;
+        const answer = normalize(answerInput.value);
+        if(!answer){
+          giveFeedback('Type a color name!', false);
+          return;
+        }
+        if(answer === currentTextColor){
+          score++;
+          scoreEl.textContent = score;
+          giveFeedback('Correct!', true);
+          // change background to the color
+          document.body.style.backgroundColor = currentTextColor;
+          // next round shortly
+          setTimeout(newRound, 350);
+        } else {
+          giveFeedback('Wrong — it was "' + currentTextColor + '"', false);
+          // small penalty: minus one second, but don't go below 1
+          timeLeft = Math.max(1, timeLeft - 1);
+          timeEl.textContent = timeLeft;
+        }
+      }
+
+      // Events
+      submitBtn.addEventListener('click', submitAnswer);
+      answerInput.addEventListener('keydown', (e)=>{
+        if(e.key === 'Enter') submitAnswer();
+      });
+      skipBtn.addEventListener('click', ()=>{
+        if(!running) return;
+        // skip: no points, no penalty, new round
+        newRound();
+      });
+      startBtn.addEventListener('click', startGame);
+      restartBtn.addEventListener('click', ()=>{
+        clearInterval(timerId);
+        running = false;
+        document.body.style.backgroundColor = '';
+        score = 0;
+        scoreEl.textContent = 0;
+        timeLeft = 30;
+        timeEl.textContent = timeLeft;
+        feedback.textContent = '';
+        finalBox.textContent = '';
+        wordDisplay.textContent = 'READY';
+        wordDisplay.style.color = '#333';
+      });
+
+      // small accessibility: focus input on load
+      answerInput.addEventListener('focus', ()=>answerInput.select());
+
+      // init
+      timeEl.textContent = timeLeft;
+      scoreEl.textContent = score;
+      wordDisplay.style.color = '#333';
+    })();
+  </script>
+</body>
+</html>
